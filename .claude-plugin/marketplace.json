@@ -1,0 +1,14 @@
+{
+  "name": "claude-budget-gauge",
+  "description": "Marketplace for the budget-gauge plugin: subscription-window budget governance for autonomous and multi-agent Claude Code runs.",
+  "owner": {
+    "name": "Tobias Holtdirk"
+  },
+  "plugins": [
+    {
+      "name": "budget-gauge",
+      "source": "./",
+      "description": "The gauge your orchestrator reads before it spends — subscription-window budget governance for autonomous and multi-agent Claude Code runs."
+    }
+  ]
+}

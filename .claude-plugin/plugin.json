@@ -1,0 +1,18 @@
+{
+  "name": "budget-gauge",
+  "version": "0.1.0",
+  "description": "The gauge your orchestrator reads before it spends — subscription-window budget governance for autonomous and multi-agent Claude Code runs.",
+  "author": {
+    "name": "Tobias Holtdirk"
+  },
+  "homepage": "https://github.com/tobihol/claude-budget-gauge",
+  "license": "MIT",
+  "keywords": [
+    "budget",
+    "usage",
+    "rate-limits",
+    "orchestration",
+    "subagents",
+    "autonomous"
+  ]
+}
