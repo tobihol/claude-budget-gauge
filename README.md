@@ -2,8 +2,8 @@
 
 **The gauge your orchestrator reads before it spends.** Budget governance for
 autonomous and multi-agent Claude Code runs: the operator's subscription
-window utilization (5-hour session + weekly cap) as one machine-readable JSON
-line, packaged as a Claude Code skill together with the policy an agent needs
+window utilization (5-hour session where the plan has one, plus weekly cap) as
+one machine-readable JSON line, packaged as a Claude Code skill together with the policy an agent needs
 to *act* on it — forwarding budgets to subagents, reserving headroom,
 calibrating %-per-call, deciding between "pause until the window resets" and
 "stop".
@@ -72,8 +72,8 @@ One compact JSON line on stdout, **always exit 0**:
 |---|---|
 | `status` | `"ok"` or `"unknown"` — nothing else |
 | `fetched_at` | UTC timestamp of the reading (readings are cached ≤3 min) |
-| `five_hour_pct` / `seven_day_pct` | utilization in percent (0–100) of the 5-hour session window / weekly cap |
-| `five_hour_resets_at` / `seven_day_resets_at` | when each window rolls over |
+| `five_hour_pct` / `seven_day_pct` | utilization in percent (0–100) of the 5-hour session window / weekly cap; `five_hour_pct` is `null` on plans without a session window (verified Ultra accounts) |
+| `five_hour_resets_at` / `seven_day_resets_at` | when each window rolls over (`five_hour_resets_at` is `null` alongside `five_hour_pct`) |
 | `warnings` | limits the account is close to, incl. per-model scoped weekly caps; `[]` when all normal |
 | `reason` | (`unknown` only) human-readable cause |
 

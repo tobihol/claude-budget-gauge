@@ -28,6 +28,8 @@ Usage: gauge.sh            print a reading (cached up to 180 s)
 Output (the public contract; details in SKILL.md next to this script):
   {"status":"ok","fetched_at":"…","five_hour_pct":11.0,"five_hour_resets_at":"…",
    "seven_day_pct":56.0,"seven_day_resets_at":"…","warnings":[…]}
+  five_hour_pct/five_hour_resets_at are null on plans without a 5-hour
+  session window (e.g. verified Ultra accounts) — the weekly cap then binds.
 or, when the state cannot be read:
   {"status":"unknown","reason":"…"}
 
@@ -134,13 +136,16 @@ resp=$(printf 'header = "Authorization: Bearer %s"\n' "$TOKEN" \
               "$ENDPOINT") || unknown "endpoint unreachable"
 
 out=$(printf '%s' "$resp" | jq -c --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '
-    if (.five_hour.utilization? != null) then
+    # Plans without a 5-hour session window (verified Ultra accounts) return
+    # "five_hour": null — a valid reading, reported as five_hour_pct: null.
+    # A reading needs at least one window; neither present = schema change.
+    if (.five_hour.utilization? != null or .seven_day.utilization? != null) then
       {status: "ok",
        fetched_at: $ts,
-       five_hour_pct: .five_hour.utilization,
-       five_hour_resets_at: .five_hour.resets_at,
-       seven_day_pct: .seven_day.utilization,
-       seven_day_resets_at: .seven_day.resets_at,
+       five_hour_pct: .five_hour.utilization?,
+       five_hour_resets_at: .five_hour.resets_at?,
+       seven_day_pct: .seven_day.utilization?,
+       seven_day_resets_at: .seven_day.resets_at?,
        warnings: [ (.limits // [])[]
                    | select(.severity? and .severity != "normal")
                    | {kind, percent, severity,

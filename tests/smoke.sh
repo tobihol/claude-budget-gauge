@@ -12,8 +12,11 @@
 # Branches not covered, by design:
 #   - "jq/curl not installed"  — trivial guard; verify with a stripped PATH if
 #     you care, but a PATH without jq breaks the test harness itself.
-#   - "endpoint rate-limited" / "unexpected response schema" — only the real
-#     endpoint can produce these; forging them would test the forgery.
+#   - "endpoint rate-limited" — only the real endpoint can produce this;
+#     forging it would test the forgery.
+#
+# Response parsing (cases 5–7) runs against a `curl` shim that serves recorded
+# response shapes, so it tests the jq mapping, not the endpoint.
 set -u
 
 GAUGE="$(cd "$(dirname "$0")/../skills/budget-gauge" && pwd)/gauge.sh"
@@ -84,6 +87,41 @@ sandbox
 fake_creds "$(( ($(date +%s) + 3600) * 1000 ))"
 out=$(HOME="$SB/home" TMPDIR="$SB/tmp" "$GAUGE")
 check "rejected token → unknown" unknown "rejected the stored OAuth token" "$out"
+
+# 5–7. response parsing via a curl shim (reads and discards the config on
+#      stdin, prints a canned body) — no network, fake creds only
+serve() { # $1 = response body
+    sandbox
+    fake_creds "$(( ($(date +%s) + 3600) * 1000 ))"
+    printf '%s' "$1" > "$SB/body.json"
+    printf '#!/bin/sh\ncat >/dev/null\ncat "%s"\n' "$SB/body.json" > "$SB/bin/curl"
+    chmod +x "$SB/bin/curl"
+    HOME="$SB/home" TMPDIR="$SB/tmp" PATH="$SB/bin:$PATH" "$GAUGE"
+}
+field() { printf '%s' "$1" | jq -e "$2" >/dev/null 2>&1; }  # jq predicate on output
+
+# 5. Pro/Max shape: both windows present
+out=$(serve '{"five_hour":{"utilization":11.0,"resets_at":"2026-07-15T22:49:59+00:00"},
+  "seven_day":{"utilization":56.0,"resets_at":"2026-07-19T05:59:59+00:00"},
+  "limits":[{"kind":"weekly_scoped","percent":85,"severity":"warning",
+             "scope":{"model":{"display_name":"Opus"}}}]}')
+check "both windows → ok" ok "" "$out"
+field "$out" '[.five_hour_pct,.seven_day_pct,.warnings[0].model] == [11,56,"Opus"]' \
+    && printf 'PASS  both windows → fields mapped\n' \
+    || { printf 'FAIL  both windows → fields mapped\n      got: %s\n' "$out"; FAILS=$((FAILS + 1)); }
+
+# 6. Ultra shape: no session window ("five_hour": null), weekly only
+out=$(serve '{"five_hour":null,
+  "seven_day":{"utilization":2.0,"resets_at":"2026-11-22T06:00:00+00:00"},
+  "limits":[{"kind":"weekly_all","percent":2,"severity":"normal","scope":null}]}')
+check "no session window → ok" ok "" "$out"
+field "$out" '[.five_hour_pct,.five_hour_resets_at,.seven_day_pct,.warnings] == [null,null,2,[]]' \
+    && printf 'PASS  no session window → five_hour_pct null\n' \
+    || { printf 'FAIL  no session window → five_hour_pct null\n      got: %s\n' "$out"; FAILS=$((FAILS + 1)); }
+
+# 7. neither window → schema change
+out=$(serve '{"five_hour":null,"seven_day":null}')
+check "no windows → unknown" unknown "unexpected response schema" "$out"
 
 # --live: one real reading with the real login
 if [ "${1:-}" = "--live" ]; then

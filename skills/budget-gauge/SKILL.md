@@ -3,7 +3,8 @@ name: budget-gauge
 description: >
   Subscription-window budget governance for autonomous and multi-agent runs:
   gauge.sh reports the operator's Claude subscription utilization (5-hour
-  session window and weekly cap, in %, with reset times and per-model
+  session window where the plan has one, and weekly cap, in %, with reset
+  times and per-model
   scoped-limit warnings) as one machine-readable JSON line, plus the policy
   for acting on it. Use when deciding whether a run can afford the next batch,
   before launching subagents or large batches of subscription-billed calls,
@@ -46,6 +47,12 @@ visible whether or not a budget is set. A `warnings` entry on a model an agent
 runs on (a scoped weekly cap) is worth surfacing to the operator even with no
 budget set.
 
+**No session window.** Some plans have no 5-hour window at all — verified
+Ultra accounts are limited only by the weekly cap (plus scoped weekly caps
+such as a per-model limit). The gauge then reports `five_hour_pct: null`:
+that is a normal `ok` reading, not `unknown`, and the **weekly** reading is
+the binding one. Budget against `seven_day_pct` there.
+
 **Setting a budget (operator-only).** A budget exists only when the operator
 states one. Record it verbatim plus a machine-checkable form — including the
 gauge baseline at authorization time. Typical forms:
@@ -54,12 +61,16 @@ gauge baseline at authorization time. Typical forms:
   spent = current_pct − baseline_pct; if `resets_at` moved, the window rolled
   over — re-baseline and count spend across windows;
 - **gauge ceiling** — "never push the 5h gauge above 80%";
+- **weekly share / ceiling** — the same two forms on `seven_day_pct`; the
+  only gauge-based forms on accounts without a session window;
 - **metered dollars** (API-key billing) — a $ cap, tracked from per-call
   `usage` blocks at list prices; the gauge does not apply there;
 - **call caps** — at most N calls per model tier.
 
 If the semantics are ambiguous (per-window vs. total, whether the reserve
-counts, …), that is an operator question, not a guess.
+counts, …), that is an operator question, not a guess. So is a budget
+stated on the 5h window when the gauge reports `five_hour_pct: null` — ask
+for its weekly equivalent rather than converting it yourself.
 
 **Enforcing and forwarding.** The orchestrator owns the budget; subagents
 execute it:
@@ -83,9 +94,10 @@ execute it:
 
 ## The gauge (instrument)
 
-On subscription billing (Pro/Max), agents and their subagents all draw from the
-operator's **5-hour session window** plus weekly caps. `gauge.sh` reads that
-gauge; the policy above says how much of the window a run may spend.
+On subscription billing (Pro/Max/Ultra), agents and their subagents all draw
+from the operator's **5-hour session window** (Pro/Max; verified Ultra
+accounts have none) plus weekly caps. `gauge.sh` reads that gauge; the policy
+above says how much of the window a run may spend.
 
 ### Usage
 
@@ -106,7 +118,8 @@ or `{"status":"unknown","reason":"…"}` when the gauge cannot be read.
 
 - `five_hour_pct` / `seven_day_pct` — utilization in percent (0–100) of the
   session window and the weekly cap; `*_resets_at` — when each window rolls
-  over.
+  over. `five_hour_pct` and `five_hour_resets_at` are `null` when the account
+  has no session window (e.g. verified Ultra): parse them as nullable.
 - `warnings` — any limit the account is close to, including **per-model scoped
   weekly caps** (e.g. the model the orchestrator or an agent runs on); empty
   when all limits are `normal`.
@@ -131,6 +144,10 @@ without a major version bump.
    scoped cap.
 4. Utilization is a percentage; calibrate %-per-call around a known workload
    before committing to larger batches (see policy above).
+5. `five_hour_pct: null` with `status: "ok"` means **no session window
+   exists**, not "unknown" and not "0%". Gate on `seven_day_pct` and the
+   `warnings` instead. (A weekly cap moves far more slowly than a 5h window,
+   so %-per-call calibration needs a larger workload to resolve.)
 
 ### How it works, and its fragilities
 

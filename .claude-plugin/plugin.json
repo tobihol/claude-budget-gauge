@@ -1,6 +1,6 @@
 {
   "name": "budget-gauge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "The gauge your orchestrator reads before it spends — subscription-window budget governance for autonomous and multi-agent Claude Code runs.",
   "author": {
     "name": "Tobias Holtdirk"
